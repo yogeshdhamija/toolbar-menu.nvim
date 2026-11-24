@@ -1,0 +1,147 @@
+*toolbar-menu.txt*
+
+Author: Yogesh Dhamija <yogeshdhamija@outlook.com>
+
+This plugin draws a menu -- Vim's ToolBar menu, by default -- as clickable
+buttons in a statusline, winbar or tabline. It draws no statusline of its
+own: |toolbar-menu.render()| returns text in 'statusline' format, for yours.
+
+Requires Neovim.
+
+==============================================================================
+THE BUTTONS					*toolbar-menu-buttons*
+
+They're the items of a menu, defined with |:menu| and its relatives, in
+order. Each draws as its name up to the first space, so a name that starts
+with an icon draws as just the icon: >vim
+
+	nnoremenu ToolBar.󰱼\ Open\ file   <Cmd>Telescope find_files<CR>
+	xnoremenu ToolBar.󰱼\ Open\ file   y<Cmd>Telescope find_files<CR>
+	nnoremenu ToolBar.󰆍\ Terminal    <Cmd>terminal<CR>
+	anoremenu ToolBar.-1-            <Nop>
+	nnoremenu ToolBar.󰁍\ Back        <C-O>
+	nnoremenu ToolBar.󰁔\ Forward     <C-I>
+<
+draws as >
+
+	 󰱼 󰆍 │ 󰁍 󰁔
+<
+A separator (a name that starts and ends with "-") draws as a "│". Submenus,
+and items hidden with a "]" (|hidden-menus|), are left out.
+
+				*toolbar-menu-state* *g:toolbar_menu_state*
+An item can show a bit of live text after its label, like a count: its
+state. g:toolbar_menu_state holds a function for each item that has one,
+by the item's name, that returns the text: >vim
+
+	nnoremenu ToolBar.󰈢\ List\ buffers  <Cmd>ls<CR>
+	let g:toolbar_menu_state = {
+	      \ '󰈢 List buffers': {-> '(' . len(getbufinfo({'buflisted': 1})) . ')'},
+	      \ }
+<
+draws as "󰈢(3)" with three buffers listed, and as "󰈢 List buffers (3)" in
+the popups. A click on the state runs the item, the same as on the label.
+
+The text goes right after the label, as is, so spacing it out is up to the
+function, and '' draws nothing. The function can be anything |call()|
+takes: a |Funcref|, a |lambda| or a function's name, which is looked up
+each time, so a function defined again later is the one called. One that
+fails draws nothing, without a message.
+
+It's called every time the buttons are drawn, which is every time the bar
+is, so it should be quick and change nothing. (For text set ahead of time,
+the way lualine sets it, that's whenever the text is set; see
+|toolbar-menu-room|.)
+
+It's a variable, and in Vimscript, so that it can sit next to the menu
+itself, even in a vimrc that Vim reads too.
+
+The full names show in the popups: when the buttons don't all fit, the ones
+that don't go behind a "…" button, which pops them up. They're dropped from
+the end, so put the ones you use most first. When not even "…" fits, nothing
+is drawn, rather than push the rest of the line out.
+
+					*toolbar-menu-clicks*
+A left click on a button runs its item the way |:emenu| does: its entry for
+the current mode. So in Visual mode an item with an |:xmenu| entry gets the
+selection, and one with no entry for the mode leaves it and runs its Normal
+mode entry instead, from Normal mode.
+
+A click on the buttons in some other window's statusline or winbar makes that
+window the current one first, so the item runs there. (A click on a
+statusline doesn't do that by itself, unlike one on its text.)
+
+A right click on any button pops up all of the items, which is a way to see
+what the icons are for.
+
+==============================================================================
+DRAWING THEM					*toolbar-menu.render()*
+
+require('toolbar-menu').render([{opts}])
+			Returns the buttons as text in 'statusline' format:
+			one click region (|stl-%@|) per button, each a space
+			and its label. "%" in a label is doubled. {opts} is a
+			table of any of:
+
+			menu		The menu to draw. Default "ToolBar".
+			max_width	How many cells the buttons may take: a
+					number, or a function given the |window-ID|
+					and returning one. Left out, the room the
+					rest of the bar leaves; see below.
+			bar		"statusline" (default), "winbar" or
+					"tabline": the bar they're in, to measure
+					that room from.
+			overflow	The label of the button that pops up the
+					rest. Default "…".
+			separator	What a separator draws as. Default "│".
+			winid		The window it's for. Default
+					|g:statusline_winid| when set, the current
+					window when not.
+
+					*toolbar-menu-room*
+Unless given a max_width, the buttons take the room left once everything
+else in the bar is drawn. That's measured from the bar itself: its option
+('statusline', 'winbar' or 'tabline' -- the window's own value, if it has
+one) is evaluated without them, and what's left of the window's width is
+theirs. So it works however the line is built:
+
+- An expression ("%!..." or "%{%...%}") is evaluated again while render()
+  draws nothing, so the room is exact, every time it's drawn.
+- Text set ahead of time, the way lualine sets it, still holds what was drawn
+  the time before; that's taken away from it. The room is right as of the
+  last time the text was set, which is the next time once the rest of the line
+  changes width. Lualine draws again on a timer, and on events like
+  |WinEnter|.
+
+==============================================================================
+EXAMPLES					*toolbar-menu-examples*
+
+Your own statusline, with the buttons in the current window only: >lua
+
+	function _G.my_statusline()
+	  local buttons = ''
+	  if vim.g.statusline_winid == vim.api.nvim_get_current_win() then
+	    buttons = require('toolbar-menu').render()
+	  end
+	  return ' %<%f %m%=' .. buttons .. '  %{&filetype}  %l:%v '
+	end
+	vim.o.statusline = '%!v:lua.my_statusline()'
+<
+lualine, in the current window only (it draws inactive_sections in the
+others). Wrapped in a function of its own, since lualine passes a function
+component its own options: >lua
+
+	require('lualine').setup({
+	  sections = {
+	    lualine_x = {
+	      function() return require('toolbar-menu').render() end,
+	      'filetype',
+	    },
+	  },
+	})
+<
+A winbar: >lua
+
+	vim.o.winbar = "%{%v:lua.require'toolbar-menu'.render({'bar': 'winbar'})%}"
+<
+ vim:tw=78:ts=8:noet:ft=help:norl:
