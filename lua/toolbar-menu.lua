@@ -14,6 +14,7 @@ local defaults = {
   max_width = nil,
   overflow = '…',
   separator = '│',
+  keep = 0,
 }
 
 local CLICK = "v:lua.require'toolbar-menu'.click"
@@ -22,11 +23,13 @@ local POPUP = ']ToolbarMenuPopup'
 
 -- What each click region runs, by the number it passes back (its minwid).
 -- Each button gets its number once and keeps it, so redraws don't add more.
+-- An item's arg is its name; an overflow button's, the first and last of the
+-- items it pops up.
 local targets, target_ids = {}, {}
-local function target_id(kind, menu, arg)
-  local key = table.concat({ kind, menu, tostring(arg) }, '\n')
+local function target_id(kind, menu, arg, last)
+  local key = table.concat({ kind, menu, tostring(arg), tostring(last) }, '\n')
   if not target_ids[key] then
-    table.insert(targets, { kind = kind, menu = menu, arg = arg })
+    table.insert(targets, { kind = kind, menu = menu, arg = arg, last = last })
     target_ids[key] = #targets
   end
   return target_ids[key]
@@ -215,7 +218,7 @@ end
 
 --- Returns the menu's items as clickable buttons, in 'statusline' format.
 --- See :help toolbar-menu.render()
----@param opts? { menu?: string, bar?: 'statusline'|'winbar'|'tabline', max_width?: integer|fun(winid: integer): integer, overflow?: string, separator?: string, winid?: integer }
+---@param opts? { menu?: string, bar?: 'statusline'|'winbar'|'tabline', max_width?: integer|fun(winid: integer): integer, overflow?: string, separator?: string, keep?: integer, winid?: integer }
 ---@return string
 function M.render(opts)
   if measuring then
@@ -234,25 +237,46 @@ function M.render(opts)
   local function width(entry)
     return 1 + vim.api.nvim_strwidth(entry.separator and opts.separator or entry.label .. entry.state)
   end
-  local total = 0
-  for _, entry in ipairs(list) do
-    total = total + width(entry)
+  local function widths(from, to)
+    local sum = 0
+    for i = from, to do
+      sum = sum + width(list[i])
+    end
+    return sum
   end
-  -- The ones that fit, and if that's not all of them, the overflow button.
-  -- Nothing at all when not even that fits: it would only push out the rest.
-  local shown = #list
+  -- Drawn: list[1..shown], then, if that leaves some out, the overflow button
+  -- for them, then list[kept..]. That's all of them when they fit.
+  local shown, kept = #list, #list + 1
+  local total = widths(1, #list)
   if total > max then
-    total = 1 + vim.api.nvim_strwidth(opts.overflow)
+    -- The last opts.keep items, and the separator before them, stay where
+    -- they are, unless not even they fit with the overflow button. The ones
+    -- dropped are from before them, from the end.
+    local overflow = 1 + vim.api.nvim_strwidth(opts.overflow)
+    local count = 0
+    while kept > 1 and count < opts.keep do
+      kept = kept - 1
+      count = count + (list[kept].separator and 0 or 1)
+    end
+    if kept > 1 and list[kept - 1].separator then
+      kept = kept - 1
+    end
+    if kept == 1 or overflow + widths(kept, #list) > max then
+      kept = #list + 1
+    end
+    -- Nothing at all when not even the overflow button fits: it would only
+    -- push out the rest of the line.
+    total = overflow + widths(kept, #list)
     if total > max then
       drawn[opts.bar][win] = { width = 0 }
       return ''
     end
     shown = 0
-    for i, entry in ipairs(list) do
-      if total + width(entry) > max then
+    for i = 1, kept - 1 do
+      if total + width(list[i]) > max then
         break
       end
-      total = total + width(entry)
+      total = total + width(list[i])
       shown = i
     end
     while shown > 0 and list[shown].separator do
@@ -262,16 +286,21 @@ function M.render(opts)
   end
 
   local parts = {}
-  for i = 1, shown do
-    local entry = list[i]
+  local function draw(entry)
     if entry.separator then
       table.insert(parts, ' ' .. escape(opts.separator))
     else
       table.insert(parts, button(target_id('item', opts.menu, entry.name), entry.label .. entry.state))
     end
   end
-  if shown < #list then
-    table.insert(parts, button(target_id('overflow', opts.menu, shown), opts.overflow))
+  for i = 1, shown do
+    draw(list[i])
+  end
+  if shown < kept - 1 then
+    table.insert(parts, button(target_id('overflow', opts.menu, shown + 1, kept - 1), opts.overflow))
+  end
+  for i = kept, #list do
+    draw(list[i])
   end
   drawn[opts.bar][win] = { width = total }
   return table.concat(parts)
@@ -323,7 +352,7 @@ function M.click(id, _, mouse_button)
     popup(target.menu, entries(target.menu), mouse_button)
   elseif mouse_button == 'l' then
     if target.kind == 'overflow' then
-      popup(target.menu, vim.list_slice(entries(target.menu), target.arg + 1), mouse_button)
+      popup(target.menu, vim.list_slice(entries(target.menu), target.arg, target.last), mouse_button)
     else
       after_release(mouse_button, id)
     end

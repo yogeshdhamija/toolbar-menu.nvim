@@ -1,6 +1,6 @@
 # toolbar-menu.nvim
 
-A menu, Vim's `ToolBar` by default, as clickable buttons in any Neovim statusline, winbar or tabline. Declare the buttons the way Vim always has, with `:menu`; each one shows its name's first word, so a name like `󰱼 Open file` draws as a one-character icon. When they don't all fit, the rest go behind a `…` button that pops them up under their full names, and a right click on any of them pops up the lot.
+A menu, Vim's `ToolBar` by default, as clickable buttons in any Neovim statusline, winbar or tabline. Declare the buttons the way Vim always has, with `:menu`; each one shows its name's first word, so a name like `󰱼 Open file` draws as a one-character icon. When they don't all fit, the rest go behind a `…` button that pops them up under their full names (the last few can be kept in place, with `keep`), and a right click on any of them pops up the lot.
 
 ```vim
 nnoremenu ToolBar.󰱼\ Open\ file   <Cmd>Telescope find_files<CR>

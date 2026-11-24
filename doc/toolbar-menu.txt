@@ -61,6 +61,14 @@ that don't go behind a "…" button, which pops them up. They're dropped from
 the end, so put the ones you use most first. When not even "…" fits, nothing
 is drawn, rather than push the rest of the line out.
 
+The last few can be kept, so that they stay put at the end, say at the right
+edge of the line: then the ones dropped are from before them, and the "…"
+goes there. With keep = 2 (see |toolbar-menu.render()|), the buttons above
+draw, when there's only room for some, as >
+
+	 󰱼 … │ 󰁍 󰁔
+<
+
 					*toolbar-menu-clicks*
 A left click on a button runs its item the way |:emenu| does: its entry for
 the current mode. So in Visual mode an item with an |:xmenu| entry gets the
@@ -94,6 +102,11 @@ require('toolbar-menu').render([{opts}])
 			overflow	The label of the button that pops up the
 					rest. Default "…".
 			separator	What a separator draws as. Default "│".
+			keep		How many items at the end stay, with the
+					separator before them, when the rest don't
+					all fit; the "…" goes before them. Default
+					0. They go too, from the end, when there
+					isn't room for them and the "…".
 			winid		The window it's for. Default
 					|g:statusline_winid| when set, the current
 					window when not.

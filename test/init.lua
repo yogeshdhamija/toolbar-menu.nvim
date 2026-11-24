@@ -33,9 +33,11 @@ vim.cmd([[
 ]])
 
 -- An expression, evaluated as the statusline is drawn. The %{} item has a
--- space in it, which a measurement mustn't take for a %='s fill.
+-- space in it, which a measurement mustn't take for a %='s fill. It's drawn
+-- with render_opts, which a test can set.
+_G.render_opts = nil
 function _G.expression_statusline()
-  return ' %f%=' .. require('toolbar-menu').render() .. ' %{"x y"} %l:%c '
+  return ' %f%=' .. require('toolbar-menu').render(_G.render_opts) .. ' %{"x y"} %l:%c '
 end
 vim.o.statusline = '%!v:lua.expression_statusline()'
 

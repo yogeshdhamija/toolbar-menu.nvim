@@ -123,7 +123,8 @@ local function ran()
   return lines
 end
 local function reset()
-  send('\27\27:only | vertical resize | set statusline=%!v:lua.expression_statusline()\rgg')
+  send('\27\27:lua render_opts = nil\r')
+  send(':only | vertical resize | set statusline=%!v:lua.expression_statusline()\rgg')
   ran()
 end
 
@@ -182,6 +183,28 @@ do
   send(':vertical resize 12\r')
   line = statusline():sub(1, vim.fn.byteidx(statusline(), 12))
   is(trimmed(line), 'x x y 1:1', 'nothing at all when not even … fits, rather than push out the rest of the line')
+end
+
+describe('keeping the last ones')
+do
+  reset()
+  send(':lua render_opts = { keep = 3 }\r')
+  is(trimmed(statusline()), 'x A B │ C % │ D E F x y 1:1', 'all of them, as ever, when they fit')
+  send(':vsplit | vertical resize 24\r')
+  local line = statusline():sub(1, vim.fn.byteidx(statusline(), 24))
+  is(trimmed(line), 'x A … │ D E F x y 1:1', 'the last ones stay, and the separator before them; the ones before them go')
+  click_statusline('…')
+  ok(on_screen('B Bravo') and on_screen('% Percent') and not on_screen('A Alpha') and not on_screen('D Delta'),
+    '… pops up just the ones it stands for')
+  click_screen('C Charlie')
+  is(ran(), { 'Charlie mode=n win=1' }, 'and runs the one clicked')
+  local row
+  line, row = statusline()
+  click('left', column(line, 'E'), row)
+  is(ran(), { 'Echo mode=n win=1' }, 'a kept one runs, as any other does')
+  send(':vertical resize 16\r')
+  line = statusline():sub(1, vim.fn.byteidx(statusline(), 16))
+  is(trimmed(line), 'x A … x y 1:1', 'they go too, from the end, when there is no room for them with the …')
 end
 
 describe('another window')
