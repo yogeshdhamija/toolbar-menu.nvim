@@ -29,7 +29,7 @@ The keys or command an item does the same as can go after a `<Tab>` in its name,
 nmenu ToolBar.󰈞\ Open\ file<Tab>\\oo   \oo
 ```
 
-draws as `󰈞\oo`. With `render({ help = '?' })`, a `?` button goes first, that pops up all of the items as a right click does; it's the last to go when there isn't room. See `:help toolbar-menu-hints` and `:help toolbar-menu-help`.
+draws as `󰈞\oo`. With `render({ help = '?' })`, a `?` button goes first, and a separator after it, that pops up all of the items as a right click does; it's the last to go when there isn't room. See `:help toolbar-menu-hints` and `:help toolbar-menu-help`.
 
 It doesn't draw a statusline of its own: `require('toolbar-menu').render()` returns `'statusline'`-format text, to put in your own (`%!` or `%{%...%}`) or in a lualine, heirline or other component. By default the buttons take whatever room the rest of the line leaves, measured from the line itself, so there's nothing to tell it about what else is there.
 

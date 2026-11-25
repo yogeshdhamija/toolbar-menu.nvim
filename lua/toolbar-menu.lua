@@ -268,13 +268,15 @@ function M.render(opts)
   end
   local overflow = 1 + vim.api.nvim_strwidth(opts.overflow)
   -- The help button goes first, and last: nothing at all is drawn when not
-  -- even it fits. What's left is the room for the rest.
+  -- even it fits. A separator follows it when anything else does. What's
+  -- left after both is the room for the rest.
   local help = opts.help and 1 + vim.api.nvim_strwidth(opts.help) or 0
+  local help_separator = opts.help and 1 + vim.api.nvim_strwidth(opts.separator) or 0
   if help > max then
     drawn[opts.bar][win] = { width = 0 }
     return ''
   end
-  max = max - help
+  max = max - help - help_separator
   -- Drawn: list[1..shown], then, if that leaves some out, the overflow button
   -- for them, then list[kept..]. That's all of them when they fit.
   local shown, kept = #list, #list + 1
@@ -315,6 +317,9 @@ function M.render(opts)
   -- The overflow button, unless it would stand for all of them: that's what
   -- the help button pops up
   local more = shown < kept - 1 and not (opts.help and shown == 0 and kept > #list)
+  -- Whatever comes after the help button: an item or the overflow button,
+  -- never a separator
+  local after_help = opts.help and (shown > 0 or more or kept <= #list)
 
   local parts = {}
   local function draw(entry)
@@ -327,6 +332,9 @@ function M.render(opts)
   if opts.help then
     table.insert(parts, button(target_id('help', opts.menu), opts.help))
   end
+  if after_help then
+    draw({ separator = true })
+  end
   for i = 1, shown do
     draw(list[i])
   end
@@ -336,7 +344,9 @@ function M.render(opts)
   for i = kept, #list do
     draw(list[i])
   end
-  drawn[opts.bar][win] = { width = help + widths(1, shown) + (more and overflow or 0) + widths(kept, #list) }
+  drawn[opts.bar][win] = {
+    width = help + (after_help and help_separator or 0) + widths(1, shown) + (more and overflow or 0) + widths(kept, #list),
+  }
   return table.concat(parts)
 end
 
