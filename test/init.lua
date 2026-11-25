@@ -18,17 +18,18 @@ function _G.log_selection(what)
   _G.log(('%s %d-%d'):format(what, from[2], to[2]))
 end
 
--- Buttons A B | C % | D E F
+-- Buttons A B | C % | D E F. A, C, D and E have hints (the text after a
+-- <Tab>); A's is on its first entry only, which is how it's kept.
 vim.cmd([[
-  nnoremenu ToolBar.A\ Alpha    <Cmd>lua log('Alpha')<CR>
-  xnoremenu ToolBar.A\ Alpha    <Cmd>lua log_selection('Alpha, selected')<CR>
-  nnoremenu ToolBar.B\ Bravo    <Cmd>lua log('Bravo')<CR>
-  anoremenu ToolBar.-1-         <Nop>
-  nnoremenu ToolBar.C\ Charlie  <Cmd>lua log('Charlie')<CR>
-  nnoremenu ToolBar.%\ Percent  <Cmd>lua log('Percent')<CR>
-  anoremenu ToolBar.-2-         <Nop>
-  nnoremenu ToolBar.D\ Delta    <Cmd>lua log('Delta')<CR>
-  nnoremenu ToolBar.E\ Echo     <Cmd>lua log('Echo')<CR>
+  nnoremenu ToolBar.A\ Alpha<Tab>:a      <Cmd>lua log('Alpha')<CR>
+  xnoremenu ToolBar.A\ Alpha             <Cmd>lua log_selection('Alpha, selected')<CR>
+  nnoremenu ToolBar.B\ Bravo             <Cmd>lua log('Bravo')<CR>
+  anoremenu ToolBar.-1-                  <Nop>
+  nnoremenu ToolBar.C\ Charlie<Tab>^C    <Cmd>lua log('Charlie')<CR>
+  nnoremenu ToolBar.%\ Percent           <Cmd>lua log('Percent')<CR>
+  anoremenu ToolBar.-2-                  <Nop>
+  nnoremenu ToolBar.D\ Delta<Tab>d\|D    <Cmd>lua log('Delta')<CR>
+  nnoremenu ToolBar.E\ Echo<Tab>\\e      <Cmd>lua log('Echo')<CR>
   nnoremenu ToolBar.F\ Foxtrot  <Cmd>lua log('Foxtrot read ' .. vim.fn.getcharstr())<CR>
 ]])
 

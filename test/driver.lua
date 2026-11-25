@@ -252,6 +252,61 @@ do
   send(':unlet g:toolbar_menu_state | redrawstatus\r')
 end
 
+describe('hints')
+do
+  reset()
+  send(':lua render_opts = { hints = true }\r')
+  is(trimmed(statusline()), 'x A:a B │ C^C % │ Dd|D E\\e F x y 1:1', "each item's hint, right after its label")
+  click_statusline('\\e')
+  is(ran(), { 'Echo mode=n win=1' }, 'a click on the hint runs the item, as one on the label does')
+  send(':lua render_opts = nil\r')
+  local line, row = statusline()
+  click('right', column(line, 'A'), row)
+  local lines = {}
+  for _, l in ipairs(screen()) do
+    for _, name in ipairs({ 'A Alpha', 'C Charlie', 'D Delta', 'E Echo' }) do
+      if l:find(name, 1, true) then
+        lines[name] = l
+      end
+    end
+  end
+  local a = lines['A Alpha'] and column(lines['A Alpha'], ':a')
+  is({ a, lines['D Delta'] and column(lines['D Delta'], 'd|D'), lines['E Echo'] and column(lines['E Echo'], '\\e') },
+    { a, a, a }, 'the popups show them, lined up, without the option too')
+  ok(a and a > column(lines['C Charlie'], 'C Charlie') + #'C Charlie', 'after the longest name, and a gap')
+  click_screen('D Delta')
+  is(ran(), { 'Delta mode=n win=1' }, 'and run the one clicked, a | in its hint and all')
+end
+
+describe('help')
+do
+  reset()
+  send(':lua render_opts = { help = "?" }\r')
+  is(trimmed(statusline()), 'x ? A B │ C % │ D E F x y 1:1', 'a help button, first')
+  click_statusline('?')
+  ok(on_screen('A Alpha') and on_screen('F Foxtrot'), 'a click on it pops up all of them, as a right click does')
+  click_screen('B Bravo')
+  is(ran(), { 'Bravo mode=n win=1' }, 'and runs the one clicked')
+  send(':vsplit | vertical resize 24\r')
+  local function left(width)
+    local line = statusline()
+    return trimmed(line:sub(1, vim.fn.byteidx(line, width)))
+  end
+  is(left(24), 'x ? A B │ C … x y 1:1', 'the rest go behind … from the end, as ever')
+  click_statusline('…')
+  ok(on_screen('% Percent') and on_screen('F Foxtrot') and not on_screen('A Alpha'), '… pops up just those, not help')
+  send('\27')
+  send(':lua render_opts = { help = "?", keep = 3 }\r')
+  send(':vertical resize 18\r')
+  is(left(18), 'x ? A … x y 1:1', 'it stays when the kept ones go')
+  send(':vertical resize 16\r')
+  is(left(16), 'x ? x y 1:1', 'and on its own, without a … that would stand for all of them')
+  send(':vertical resize 13\r')
+  is(left(13), 'x ? x y 1:1', 'down to the last cell it needs')
+  send(':vertical resize 12\r')
+  is(left(12), 'x x y 1:1', 'then nothing at all')
+end
+
 vim.fn.chansend(chan, '\27\27:qa!\r')
 vim.wait(300)
 vim.fn.delete(tmp, 'rf')

@@ -15,6 +15,8 @@ local defaults = {
   overflow = '…',
   separator = '│',
   keep = 0,
+  hints = false,
+  help = nil,
 }
 
 local CLICK = "v:lua.require'toolbar-menu'.click"
@@ -24,7 +26,7 @@ local POPUP = ']ToolbarMenuPopup'
 -- What each click region runs, by the number it passes back (its minwid).
 -- Each button gets its number once and keeps it, so redraws don't add more.
 -- An item's arg is its name; an overflow button's, the first and last of the
--- items it pops up.
+-- items it pops up. A help button pops up all of them, so it has none.
 local targets, target_ids = {}, {}
 local function target_id(kind, menu, arg, last)
   local key = table.concat({ kind, menu, tostring(arg), tostring(last) }, '\n')
@@ -69,9 +71,10 @@ local function state(name)
   return tostring(text)
 end
 
--- The menu's items in order: { name =, label =, state = } for each, its
--- label being the name up to the first space, and { separator = true } for
--- separators. Submenus and hidden items are left out.
+-- The menu's items in order: { name =, label =, state =, hint = } for each,
+-- its label being the name up to the first space and its hint the text after
+-- a <Tab> (:help menu-text), and { separator = true } for separators.
+-- Submenus and hidden items are left out.
 local function entries(menu)
   local ok, found = pcall(vim.fn.menu_get, menu)
   local list = {}
@@ -79,7 +82,12 @@ local function entries(menu)
     if is_separator(item.name) then
       table.insert(list, { separator = true })
     elseif not item.submenus and item.hidden == 0 then
-      table.insert(list, { name = item.name, label = item.name:match('^%S+') or item.name, state = state(item.name) })
+      table.insert(list, {
+        name = item.name,
+        label = item.name:match('^%S+') or item.name,
+        state = state(item.name),
+        hint = item.actext or '',
+      })
     end
   end
   return tidy(list)
@@ -87,7 +95,7 @@ end
 
 -- A menu path, for :emenu or :menu
 local function path(menu, name)
-  return menu .. '.' .. (name:gsub('[ .\\]', '\\%0'))
+  return menu .. '.' .. (name:gsub('[ .\\|]', '\\%0'))
 end
 
 -- The menu mode of each mode() (:help creating-menus); anything else is
@@ -128,19 +136,30 @@ local held = {}
 local held_ns = vim.api.nvim_create_namespace('toolbar-menu-held')
 
 -- Pops up these entries of the menu, at the mouse, under their full names
--- and states. mouse_button ('l' or 'r') is the one whose click popped it up,
--- still down.
+-- and states, with their hints lined up after them. mouse_button ('l' or 'r')
+-- is the one whose click popped it up, still down.
 local function popup(menu, list, mouse_button)
   list = tidy(list)
   if #list == 0 then
     return
+  end
+  local texts, widest = {}, 0
+  for i, entry in ipairs(list) do
+    if not entry.separator then
+      texts[i] = entry.state == '' and entry.name or entry.name .. ' ' .. entry.state
+      widest = math.max(widest, vim.api.nvim_strwidth(texts[i]))
+    end
   end
   pcall(vim.cmd, 'aunmenu ' .. POPUP)
   for i, entry in ipairs(list) do
     if entry.separator then
       vim.cmd(('anoremenu %s.-%d- <Nop>'):format(POPUP, i))
     else
-      local text = entry.state == '' and entry.name or entry.name .. ' ' .. entry.state
+      -- In the name itself: a popup in a terminal leaves out a <Tab>'s text
+      local text = texts[i]
+      if entry.hint ~= '' then
+        text = text .. (' '):rep(widest - vim.api.nvim_strwidth(text) + 2) .. entry.hint
+      end
       -- & would mark the next letter as the item's shortcut key
       local item = path(POPUP, text):gsub('&', '&&')
       local rhs = ('<Cmd>lua require("toolbar-menu")._chosen(%d)<CR>'):format(target_id('item', menu, entry.name))
@@ -218,7 +237,7 @@ end
 
 --- Returns the menu's items as clickable buttons, in 'statusline' format.
 --- See :help toolbar-menu.render()
----@param opts? { menu?: string, bar?: 'statusline'|'winbar'|'tabline', max_width?: integer|fun(winid: integer): integer, overflow?: string, separator?: string, keep?: integer, winid?: integer }
+---@param opts? { menu?: string, bar?: 'statusline'|'winbar'|'tabline', max_width?: integer|fun(winid: integer): integer, overflow?: string, separator?: string, keep?: integer, hints?: boolean, help?: string, winid?: integer }
 ---@return string
 function M.render(opts)
   if measuring then
@@ -234,8 +253,11 @@ function M.render(opts)
   end
 
   local list = entries(opts.menu)
+  local function text(entry)
+    return entry.label .. entry.state .. (opts.hints and entry.hint or '')
+  end
   local function width(entry)
-    return 1 + vim.api.nvim_strwidth(entry.separator and opts.separator or entry.label .. entry.state)
+    return 1 + vim.api.nvim_strwidth(entry.separator and opts.separator or text(entry))
   end
   local function widths(from, to)
     local sum = 0
@@ -244,15 +266,22 @@ function M.render(opts)
     end
     return sum
   end
+  local overflow = 1 + vim.api.nvim_strwidth(opts.overflow)
+  -- The help button goes first, and last: nothing at all is drawn when not
+  -- even it fits. What's left is the room for the rest.
+  local help = opts.help and 1 + vim.api.nvim_strwidth(opts.help) or 0
+  if help > max then
+    drawn[opts.bar][win] = { width = 0 }
+    return ''
+  end
+  max = max - help
   -- Drawn: list[1..shown], then, if that leaves some out, the overflow button
   -- for them, then list[kept..]. That's all of them when they fit.
   local shown, kept = #list, #list + 1
-  local total = widths(1, #list)
-  if total > max then
+  if widths(1, #list) > max then
     -- The last opts.keep items, and the separator before them, stay where
     -- they are, unless not even they fit with the overflow button. The ones
     -- dropped are from before them, from the end.
-    local overflow = 1 + vim.api.nvim_strwidth(opts.overflow)
     local count = 0
     while kept > 1 and count < opts.keep do
       kept = kept - 1
@@ -264,14 +293,14 @@ function M.render(opts)
     if kept == 1 or overflow + widths(kept, #list) > max then
       kept = #list + 1
     end
+    shown = 0
     -- Nothing at all when not even the overflow button fits: it would only
-    -- push out the rest of the line.
-    total = overflow + widths(kept, #list)
-    if total > max then
+    -- push out the rest of the line. With a help button, that's the button.
+    if overflow > max and not opts.help then
       drawn[opts.bar][win] = { width = 0 }
       return ''
     end
-    shown = 0
+    local total = overflow + widths(kept, #list)
     for i = 1, kept - 1 do
       if total + width(list[i]) > max then
         break
@@ -280,29 +309,34 @@ function M.render(opts)
       shown = i
     end
     while shown > 0 and list[shown].separator do
-      total = total - width(list[shown])
       shown = shown - 1
     end
   end
+  -- The overflow button, unless it would stand for all of them: that's what
+  -- the help button pops up
+  local more = shown < kept - 1 and not (opts.help and shown == 0 and kept > #list)
 
   local parts = {}
   local function draw(entry)
     if entry.separator then
       table.insert(parts, ' ' .. escape(opts.separator))
     else
-      table.insert(parts, button(target_id('item', opts.menu, entry.name), entry.label .. entry.state))
+      table.insert(parts, button(target_id('item', opts.menu, entry.name), text(entry)))
     end
+  end
+  if opts.help then
+    table.insert(parts, button(target_id('help', opts.menu), opts.help))
   end
   for i = 1, shown do
     draw(list[i])
   end
-  if shown < kept - 1 then
+  if more then
     table.insert(parts, button(target_id('overflow', opts.menu, shown + 1, kept - 1), opts.overflow))
   end
   for i = kept, #list do
     draw(list[i])
   end
-  drawn[opts.bar][win] = { width = total }
+  drawn[opts.bar][win] = { width = help + widths(1, shown) + (more and overflow or 0) + widths(kept, #list) }
   return table.concat(parts)
 end
 
@@ -348,7 +382,7 @@ function M.click(id, _, mouse_button)
   if win ~= 0 and win ~= vim.api.nvim_get_current_win() and vim.api.nvim_win_is_valid(win) then
     vim.api.nvim_set_current_win(win)
   end
-  if mouse_button == 'r' then
+  if mouse_button == 'r' or (mouse_button == 'l' and target.kind == 'help') then
     popup(target.menu, entries(target.menu), mouse_button)
   elseif mouse_button == 'l' then
     if target.kind == 'overflow' then

@@ -56,6 +56,23 @@ the way lualine sets it, that's whenever the text is set; see
 It's a variable, and in Vimscript, so that it can sit next to the menu
 itself, even in a vimrc that Vim reads too.
 
+						*toolbar-menu-hints*
+An item's hint is the text after a <Tab> in its name (|menu-text|): Vim's
+way to show the keys or command an item does the same as. With the hints
+option (see |toolbar-menu.render()|), it's drawn after the label and state: >vim
+
+	nmenu ToolBar.󰈞\ Open\ file<Tab>\\oo   \oo
+	nnoremenu ToolBar.󰆓\ Save<Tab>:w        <Cmd>write<CR>
+<
+draws as "󰈞\oo 󰆓:w". Like the state, it goes right after the label, as is,
+and a click on it runs the item. There's one hint per item, whatever the
+mode, and it's the first entry's: put it on the item's first |:menu|, as one
+on a later entry (an |:xmenu| after an |:nmenu|, say) is left out.
+
+The popups always show it, lined up after the full names, whether the buttons
+do or not. (A popup in a terminal leaves out a <Tab>'s text, so it's put in
+the item's name there.)
+
 The full names show in the popups: when the buttons don't all fit, the ones
 that don't go behind a "…" button, which pops them up. They're dropped from
 the end, so put the ones you use most first. When not even "…" fits, nothing
@@ -82,6 +99,18 @@ statusline doesn't do that by itself, unlike one on its text.)
 A right click on any button pops up all of the items, which is a way to see
 what the icons are for.
 
+						*toolbar-menu-help*
+A left click on the help button, when there is one (the help option, see
+|toolbar-menu.render()|), pops up all of the items too. It's a button of its
+own, first, that isn't an item and so isn't in any popup. It's the last to go when there isn't room: after
+the kept ones, and with them the "…", which would only stand for all of the
+items, as it does. With help = "?": >
+
+	 ? 󰱼 󰆍 │ 󰁍 󰁔
+	 ? 󰱼 … │ 󰁍 󰁔
+	 ?
+<
+
 ==============================================================================
 DRAWING THEM					*toolbar-menu.render()*
 
@@ -107,6 +136,11 @@ require('toolbar-menu').render([{opts}])
 					all fit; the "…" goes before them. Default
 					0. They go too, from the end, when there
 					isn't room for them and the "…".
+			hints		true to draw each item's hint after its
+					label: |toolbar-menu-hints|. Default false.
+			help		The label of a help button, drawn first,
+					that pops up all of the items:
+					|toolbar-menu-help|. Default none.
 			winid		The window it's for. Default
 					|g:statusline_winid| when set, the current
 					window when not.
